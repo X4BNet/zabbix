@@ -46,7 +46,7 @@ class CLdap {
 			'bind_password' => '',
 			'base_dn' => 'ou=users,ou=system',
 			'search_attribute' => 'uid',
-			'userfilter' => '(%{attr}=%{user})',
+			'userfilter' => '(&(accountStatus=active)(&(memberof=cn=OperationalAccess,ou=groups,%{dn})(%{attr}=%{user})))',
 			'groupkey' => 'cn',
 			'mapping' => [
 				'username' => 'uid',
@@ -259,6 +259,7 @@ class CLdap {
 
 	private function makeFilter($filter, $placeholders) {
 		$placeholders['attr'] = $this->cnf['search_attribute'];
+		$placeholders['dn'] = $this->cnf['base_dn'];
 		preg_match_all("/%{([^}]+)/", $filter, $matches, PREG_PATTERN_ORDER);
 
 		// replace each match
