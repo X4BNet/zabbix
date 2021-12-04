@@ -372,7 +372,7 @@ static int	db_read_values_by_time(zbx_uint64_t itemid, int value_type, zbx_vecto
 	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
 
 	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
-			"select clock,ns,%s"
+			"select SQL_BUFFER_RESULT clock,ns,%s"
 			" from %s"
 			" where itemid=" ZBX_FS_UI64,
 			table->fields, table->name, itemid);
@@ -461,7 +461,7 @@ static int	db_read_values_by_count(zbx_uint64_t itemid, int value_type, zbx_vect
 
 		sql_offset = 0;
 		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
-				"select clock,ns,%s"
+				"select SQL_BUFFER_RESULT clock,ns,%s"
 				" from %s"
 				" where itemid=" ZBX_FS_UI64
 					" and clock<=%d",
@@ -552,7 +552,7 @@ static int	db_read_values_by_time_and_count(zbx_uint64_t itemid, int value_type,
 	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
 
 	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
-			"select clock,ns,%s"
+			"select SQL_BUFFER_RESULT clock,ns,%s"
 			" from %s"
 			" where itemid=" ZBX_FS_UI64,
 			table->fields, table->name, itemid);
