@@ -28,6 +28,7 @@
 
 extern char	*CONFIG_DBHOST;
 extern char	*CONFIG_DBNAME;
+extern char	*CONFIG_DBPARTITIONS;
 extern char	*CONFIG_DBSCHEMA;
 extern char	*CONFIG_DBUSER;
 extern char	*CONFIG_DBPASSWORD;

@@ -3050,7 +3050,7 @@ static void produce_partition(uint64_t rawtime, const char* table, char* dest, i
 
     // Format time, "ddd yyyy-mm-dd hh:mm:ss zzz"
     ts = *gmtime(&rawtime);
-	temp = dest + zbx_snprintf(dest, dest_size, "`zabbix-partitions`.`%s_p", table);
+	temp = dest + zbx_snprintf(dest, dest_size, "`%s`.`%s_p", CONFIG_DBPARTITIONS, table);
     strftime(temp, dest_size - (temp - dest), "%Y%m%d%H00`", &ts);
 }
 

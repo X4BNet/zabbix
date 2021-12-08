@@ -261,6 +261,7 @@ char	*CONFIG_FPING_LOCATION		= NULL;
 char	*CONFIG_FPING6_LOCATION		= NULL;
 char	*CONFIG_DBHOST			= NULL;
 char	*CONFIG_DBNAME			= NULL;
+char    *CONFIG_DBPARTITIONS    = NULL;
 char	*CONFIG_DBSCHEMA		= NULL;
 char	*CONFIG_DBUSER			= NULL;
 char	*CONFIG_DBPASSWORD		= NULL;
@@ -848,6 +849,8 @@ static void	zbx_load_config(ZBX_TASK_EX *task)
 			PARM_OPT,	0,			0},
 		{"DBName",			&CONFIG_DBNAME,				TYPE_STRING,
 			PARM_MAND,	0,			0},
+		{"DBPartitions",			&CONFIG_DBPARTITIONS,				TYPE_STRING,
+			PARM_OPT,	0,			0},
 		{"DBSchema",			&CONFIG_DBSCHEMA,			TYPE_STRING,
 			PARM_OPT,	0,			0},
 		{"DBUser",			&CONFIG_DBUSER,				TYPE_STRING,
