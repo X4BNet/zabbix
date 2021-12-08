@@ -323,7 +323,7 @@ class CHistoryManager {
 
 					if ($clock_max !== null) {
 						$values = DBfetchArray(DBselect(
-							'SELECT *'.
+							'SELECT SQL_BUFFER_RESULT *'.
 							' FROM '.self::getTableName($item['value_type']).' h'.
 							' WHERE h.itemid='.zbx_dbstr($item['itemid']).
 								' AND h.clock='.zbx_dbstr($clock_max).
@@ -342,7 +342,7 @@ class CHistoryManager {
 			foreach ($items as $item) {
 				// Cannot order by h.ns directly here due to performance issues.
 				$values = DBfetchArray(DBselect(
-					'SELECT *'.
+					'SELECT SQL_BUFFER_RESULT *'.
 					' FROM '.self::getTableName($item['value_type']).' h'.
 					' WHERE h.itemid='.zbx_dbstr($item['itemid']).
 						($period ? ' AND h.clock>'.$period : '').
@@ -365,7 +365,7 @@ class CHistoryManager {
 						} while ($values && $values[$count - 1]['clock'] == $clock);
 
 						$db_values = DBselect(
-							'SELECT *'.
+							'SELECT SQL_BUFFER_RESULT *'.
 							' FROM '.self::getTableName($item['value_type']).' h'.
 							' WHERE h.itemid='.zbx_dbstr($item['itemid']).
 								' AND h.clock='.$clock.
