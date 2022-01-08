@@ -413,6 +413,18 @@ out:
 	return SUCCEED;
 }
 
+
+
+static void produce_partition(uint64_t rawtime, const char* table, char* dest, int dest_size){
+    struct tm  ts;
+	char* temp;
+
+    // Format time, "ddd yyyy-mm-dd hh:mm:ss zzz"
+    ts = *gmtime(&rawtime);
+	temp = dest + zbx_snprintf(dest, dest_size, "`%s`.`%s_p", CONFIG_DBPARTITIONS, table);
+    strftime(temp, dest_size - (temp - dest), "%Y%m%d%H00`", &ts);
+}
+
 /************************************************************************************
  *                                                                                  *
  * Function: db_read_values_by_count                                                *
@@ -447,35 +459,27 @@ static int	db_read_values_by_count(zbx_uint64_t itemid, int value_type, zbx_vect
 	DB_RESULT		result;
 	DB_ROW			row;
 	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
-	const int		periods[] = {SEC_PER_HOUR, SEC_PER_DAY, SEC_PER_WEEK, SEC_PER_MONTH, 0, -1};
+	char temp_table_name[128];
 
-	clock_to = end_timestamp;
+	clock_to = ((end_timestamp + 1) / SEC_PER_HOUR) * SEC_PER_HOUR;
+	clock_from = (clock_to - SEC_PER_HOUR);
 
-	while (-1 != periods[step] && 0 < count)
+	for (step=0; step <= (24*4) && 0 < count; step ++)
 	{
-		if (0 > (clock_from = clock_to - periods[step]))
-		{
-			clock_from = clock_to;
-			step = 4;
-		}
-
 		sql_offset = 0;
+		produce_partition(clock_from, table->name, temp_table_name, 128);
 		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
-				"select SQL_BUFFER_RESULT clock,ns,%s"
+				"select clock,ns,%s"
 				" from %s"
 				" where itemid=" ZBX_FS_UI64
-					" and clock<=%d",
-				table->fields, table->name, itemid, clock_to);
-
-		if (clock_from != clock_to)
-			zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, " and clock>%d", clock_from);
-
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, " order by clock desc");
+					" and clock BETWEEN %d AND %d"
+				" order by clock desc",
+				table->fields, temp_table_name, itemid, clock_from, clock_to);
 
 		result = DBselectN(sql, count);
 
 		if (NULL == result)
-			goto out;
+			goto cont;
 
 		while (NULL != (row = DBfetch(result)))
 		{
@@ -491,8 +495,9 @@ static int	db_read_values_by_count(zbx_uint64_t itemid, int value_type, zbx_vect
 		}
 		DBfree_result(result);
 
-		clock_to -= periods[step];
-		step++;
+cont:
+		clock_to = clock_to - SEC_PER_HOUR;
+		clock_from = clock_to - SEC_PER_HOUR;
 	}
 
 
