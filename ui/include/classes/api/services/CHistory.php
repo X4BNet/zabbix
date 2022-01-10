@@ -241,6 +241,14 @@ class CHistory extends CApiService {
 		return $result;
 	}
 
+	static function createSelectQueryFromParts(array $sqlParts) {
+		$ret = parent::createSelectQueryFromParts($sqlParts);
+
+		$ret = preg_replace('/^SELECT\s+/', 'SELECT SQL_BUFFER_RESULT ', $ret, 1);
+
+		return $ret;
+	}
+
 	/**
 	 * Elasticsearch specific implementation of get.
 	 *
