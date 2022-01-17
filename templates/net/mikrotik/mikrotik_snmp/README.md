@@ -3,7 +3,7 @@
 
 ## Overview
 
-For Zabbix version: 5.4 and higher  
+For Zabbix version: 6.0 and higher  
 
 ## Setup
 
@@ -47,10 +47,10 @@ No specific Zabbix configuration is required.
 |CPU discovery |<p>HOST-RESOURCES-MIB::hrProcessorTable discovery</p> |SNMP |hrProcessorLoad.discovery |
 |Temperature CPU discovery |<p>MIKROTIK-MIB::mtxrHlProcessorTemperature</p><p>Since temperature of CPU is not available on all Mikrotik hardware, this is done to avoid unsupported items.</p> |SNMP |mtxrHlProcessorTemperature.discovery |
 |Temperature sensor discovery |<p>MIKROTIK-MIB::mtxrHlTemperature</p><p>Since temperature sensor is not available on all Mikrotik hardware,</p><p>this is done to avoid unsupported items.</p> |SNMP |mtxrHlTemperature.discovery |
-|LTE modem discovery |<p>MIKROTIK-MIB::mtxrLTEModemInterfaceIndex</p> |SNMP |mtxrLTEModem.discovery<p>**Filter**:</p>AND <p>- A: {#IFTYPE} MATCHES_REGEX `^1$`</p><p>- B: {#IFNAME} MATCHES_REGEX `{$IFNAME.LTEMODEM.MATCHES}`</p> |
-|AP channel discovery |<p>MIKROTIK-MIB::mtxrWlAp</p> |SNMP |mtxrWlAp.discovery<p>**Filter**:</p>AND <p>- A: {#IFTYPE} MATCHES_REGEX `^71$`</p><p>- B: {#IFADMINSTATUS} MATCHES_REGEX `^1$`</p> |
-|CAPsMAN AP channel discovery |<p>MIKROTIK-MIB::mtxrWlCMChannel</p> |SNMP |mtxrWlCMChannel.discovery<p>**Filter**:</p>AND <p>- A: {#IFTYPE} MATCHES_REGEX `^1$`</p><p>- B: {#IFNAME} MATCHES_REGEX `{$IFNAME.WIFI.MATCHES}`</p> |
-|Storage discovery |<p>HOST-RESOURCES-MIB::hrStorage discovery with storage filter</p> |SNMP |storage.discovery<p>**Filter**:</p>OR <p>- B: {#STORAGE_TYPE} MATCHES_REGEX `.+4$`</p><p>- A: {#STORAGE_TYPE} MATCHES_REGEX `.+hrStorageFixedDisk`</p> |
+|LTE modem discovery |<p>MIKROTIK-MIB::mtxrLTEModemInterfaceIndex</p> |SNMP |mtxrLTEModem.discovery<p>**Filter**:</p>AND <p>- {#IFTYPE} MATCHES_REGEX `^1$`</p><p>- {#IFNAME} MATCHES_REGEX `{$IFNAME.LTEMODEM.MATCHES}`</p> |
+|AP channel discovery |<p>MIKROTIK-MIB::mtxrWlAp</p> |SNMP |mtxrWlAp.discovery<p>**Filter**:</p>AND <p>- {#IFTYPE} MATCHES_REGEX `^71$`</p><p>- {#IFADMINSTATUS} MATCHES_REGEX `^1$`</p> |
+|CAPsMAN AP channel discovery |<p>MIKROTIK-MIB::mtxrWlCMChannel</p> |SNMP |mtxrWlCMChannel.discovery<p>**Filter**:</p>AND <p>- {#IFTYPE} MATCHES_REGEX `^1$`</p><p>- {#IFNAME} MATCHES_REGEX `{$IFNAME.WIFI.MATCHES}`</p> |
+|Storage discovery |<p>HOST-RESOURCES-MIB::hrStorage discovery with storage filter</p> |SNMP |storage.discovery<p>**Filter**:</p>OR <p>- {#STORAGE_TYPE} MATCHES_REGEX `.+4$`</p><p>- {#STORAGE_TYPE} MATCHES_REGEX `.+hrStorageFixedDisk`</p> |
 
 ## Items collected
 
@@ -76,11 +76,11 @@ No specific Zabbix configuration is required.
 |Wireless |Interface {#IFNAME}({#IFALIAS}): SSID |<p>MIB: MIKROTIK-MIB</p><p>mtxrWlApSsid Service Set Identifier.</p> |SNMP |ssid.name[mtxrWlApSsid.{#SNMPINDEX}]<p>**Preprocessing**:</p><p>- DISCARD_UNCHANGED_HEARTBEAT: `1h`</p> |
 |Wireless |Interface {#IFNAME}({#IFALIAS}): AP band |<p>MIB: MIKROTIK-MIB</p><p>mtxrWlApBand</p> |SNMP |ssid.band[mtxrWlApBand.{#SNMPINDEX}]<p>**Preprocessing**:</p><p>- DISCARD_UNCHANGED_HEARTBEAT: `1h`</p> |
 |Wireless |Interface {#IFNAME}({#IFALIAS}): AP noise floor |<p>MIB: MIKROTIK-MIB</p><p>mtxrWlApNoiseFloor</p> |SNMP |ssid.noise[mtxrWlApNoiseFloor.{#SNMPINDEX}]<p>**Preprocessing**:</p><p>- DISCARD_UNCHANGED_HEARTBEAT: `15m`</p> |
-|Wireless |Interface {#IFNAME}({#IFALIAS}): AP registered clients |<p>MIB: MIKROTIK-MIB</p><p>mtxrWlApClientCount Client established connection to AP, but didn't finish all authetncation procedures for full connection.</p> |SNMP |ssid.regclient[mtxrWlApClientCount.{#SNMPINDEX}] |
+|Wireless |Interface {#IFNAME}({#IFALIAS}): AP registered clients |<p>MIB: MIKROTIK-MIB</p><p>mtxrWlApClientCount Client established connection to AP, but didn't finish all authentication procedures for full connection.</p> |SNMP |ssid.regclient[mtxrWlApClientCount.{#SNMPINDEX}] |
 |Wireless |Interface {#IFNAME}({#IFALIAS}): AP authenticated clients |<p>MIB: MIKROTIK-MIB</p><p>mtxrWlApAuthClientCount Number of authentication clients.</p> |SNMP |ssid.authclient[mtxrWlApAuthClientCount.{#SNMPINDEX}] |
 |Wireless |Interface {#IFNAME}({#IFALIAS}): AP channel |<p>MIB: MIKROTIK-MIB</p><p>mtxrWlCMChannel</p> |SNMP |ssid.channel[mtxrWlCMChannel.{#SNMPINDEX}]<p>**Preprocessing**:</p><p>- DISCARD_UNCHANGED_HEARTBEAT: `1h`</p> |
 |Wireless |Interface {#IFNAME}({#IFALIAS}): AP state |<p>MIB: MIKROTIK-MIB</p><p>mtxrWlCMState Wireless interface state.</p> |SNMP |ssid.state[mtxrWlCMState.{#SNMPINDEX}]<p>**Preprocessing**:</p><p>- DISCARD_UNCHANGED_HEARTBEAT: `1h`</p> |
-|Wireless |Interface {#IFNAME}({#IFALIAS}): AP registered clients |<p>MIB: MIKROTIK-MIB</p><p>mtxrWlCMRegClientCount Client established connection to AP, but didn't finish all authetncation procedures for full connection.</p> |SNMP |ssid.regclient[mtxrWlCMRegClientCount.{#SNMPINDEX}] |
+|Wireless |Interface {#IFNAME}({#IFALIAS}): AP registered clients |<p>MIB: MIKROTIK-MIB</p><p>mtxrWlCMRegClientCount Client established connection to AP, but didn't finish all authentication procedures for full connection.</p> |SNMP |ssid.regclient[mtxrWlCMRegClientCount.{#SNMPINDEX}] |
 |Wireless |Interface {#IFNAME}({#IFALIAS}): AP authenticated clients |<p>MIB: MIKROTIK-MIB</p><p>mtxrWlCMAuthClientCount Number of authentication clients.</p> |SNMP |ssid.authclient[mtxrWlCMAuthClientCount.{#SNMPINDEX}] |
 
 ## Triggers
