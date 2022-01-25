@@ -61,7 +61,7 @@ define('ZBX_MAX_TIMESHIFT',	788400000); // Max valid timeshift value in seconds 
 
 define('ZBX_GEOMAP_MAX_ZOOM', 30); // Max zoom level for geomap.
 
-define('ZBX_MAX_GRAPHS_PER_PAGE', 20);
+define('ZBX_MAX_GRAPHS_PER_PAGE', 100);
 
 // Date and time format separators must be synced with setSDateFromOuterObj() in class.calendar.js.
 define('ZBX_FULL_DATE_TIME',	'Y-m-d H:i:s'); // Time selector full date and time presentation format.
