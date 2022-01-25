@@ -1560,7 +1560,19 @@ static int	expression_eval_many(zbx_expression_eval_t *eval, zbx_expression_quer
 			goto out;
 		case ZBX_VALUE_FUNC_LAST:
 			count = 1;
-			seconds = 0;
+			
+			if (1 != args_num)
+			{
+				seconds = 0;
+			}
+			else
+			{
+				if (FAIL == is_time_suffix(args[0].data.str, &seconds, ZBX_LENGTH_UNLIMITED))
+				{
+					*error = zbx_strdup(NULL, "invalid second parameter");
+					goto out;
+				}
+			}
 			break;
 		case ZBX_VALUE_FUNC_MIN:
 		case ZBX_VALUE_FUNC_AVG:
