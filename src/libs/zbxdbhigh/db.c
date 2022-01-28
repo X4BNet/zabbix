@@ -2904,7 +2904,7 @@ static int strprefix(const char *pre, const char *str)
     return strncmp(pre, str, strlen(pre));
 }
 
-static void produce_partition(uint64_t rawtime, const char* table, char* dest, int dest_size){
+void db_partition_produce_name(uint64_t rawtime, const char* table, char* dest, int dest_size){
     struct tm  ts;
 	char* temp;
 
@@ -2912,6 +2912,24 @@ static void produce_partition(uint64_t rawtime, const char* table, char* dest, i
     ts = *gmtime(&rawtime);
 	temp = dest + zbx_snprintf(dest, dest_size, "`%s`.`%s_p", CONFIG_DBPARTITIONS, table);
     strftime(temp, dest_size - (temp - dest), "%Y%m%d%H00`", &ts);
+}
+
+uint64_t db_partition_range(const char* table, const char* rangeFn) {
+	uint64_t	ret = -1;
+	DB_RESULT	result;
+	DB_ROW		row;
+	char* table_esc = DBdyn_escape_string(table);
+	result = DBselect("SELECT %s(PARTITION_DESCRIPTION) FROM information_schema.partitions WHERE table_schema = database() AND table_name = '%s'", rangeFn, table_esc);
+	zbx_free(table_esc);
+
+	if (NULL != (row = DBfetch(result)))
+	{
+		ZBX_STR2UINT64(ret, row[0]);
+	}
+
+	DBfree_result(result);
+
+	return ret;
 }
 
 /******************************************************************************
@@ -2953,6 +2971,8 @@ int	zbx_db_insert_execute(zbx_db_insert_t *self)
 	const char* table_name;
 	uint64_t clock_min = -1, clock_max = 0;
 	char partition_min[128], partition_max[128];
+
+	uint64_t min_value;
 
 	if (0 == self->rows.values_num)
 		return SUCCEED;
@@ -2996,7 +3016,7 @@ int	zbx_db_insert_execute(zbx_db_insert_t *self)
 
 	table_name = self->table->table;
 #ifdef HAVE_MYSQL
-	if(isHistory == 2 && strcmp(self->table->table, history_log_tab) != 0){
+	if(isHistory == 2){
 		for (j = 0; j < self->fields.values_num; j++){
 			field = (const ZBX_FIELD *)self->fields.values[j];
 
@@ -3033,9 +3053,21 @@ int	zbx_db_insert_execute(zbx_db_insert_t *self)
 		}
 
 		if(clock_min != -1){
+			min_value = db_partition_range(table_name, "MIN");
+			if(min_value == -1){
+				zabbix_log(LOG_LEVEL_ERR, "insert [table:%s] failed due to missing all partitions", table_name);
+				goto out;
+			}
+			if(clock_min <= min_value){
+				clock_min = min_value;
+				if(clock_max <= min_value){
+					clock_max = min_value;
+				}
+			}
+
 			// If min and max are the same partition then we can optimize out the CONNECT table
-			produce_partition(clock_min, table_name, partition_min, sizeof(partition_min));
-			produce_partition(clock_max, table_name, partition_max, sizeof(partition_max));
+			db_partition_produce_name(clock_min, table_name, partition_min, sizeof(partition_min));
+			db_partition_produce_name(clock_max, table_name, partition_max, sizeof(partition_max));
 			if(strcmp(partition_min, partition_max) == 0) {
 				table_name = partition_min;
 			}

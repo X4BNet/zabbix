@@ -18,6 +18,7 @@
 **/
 
 #include "common.h"
+#include "log.h"
 #include "zbxalgo.h"
 #include "db.h"
 #include "dbcache.h"
@@ -380,40 +381,7 @@ out:
 
 
 
-static void produce_partition(uint64_t rawtime, const char* table, char* dest, int dest_size){
-    struct tm  ts;
-	char* temp;
-
-    // Format time, "ddd yyyy-mm-dd hh:mm:ss zzz"
-    ts = *gmtime(&rawtime);
-	temp = dest + zbx_snprintf(dest, dest_size, "`%s`.`%s_p", CONFIG_DBPARTITIONS, table);
-    strftime(temp, dest_size - (temp - dest), "%Y%m%d%H00`", &ts);
-}
-
-/************************************************************************************
- *                                                                                  *
- * Purpose: reads item history data from database                                   *
- *                                                                                  *
- * Parameters:  itemid        - [IN] the itemid                                     *
- *              value_type    - [IN] the value type (see ITEM_VALUE_TYPE_* defs)    *
- *              values        - [OUT] the item history data values                  *
- *              count         - [IN] the number of values to read                   *
- *              end_timestamp - [IN] the value timestamp to start reading with      *
- *                                                                                  *
- * Return value: SUCCEED - the history data were read successfully                  *
- *               FAIL - otherwise                                                   *
- *                                                                                  *
- * Comments: this function reads <count> values before <count_timestamp> (including)*
- *           plus all values in range:                                              *
- *             count_timestamp < <value timestamp> <= read_timestamp                *
- *                                                                                  *
- *           To speed up the reading time with huge data loads, data is read by     *
- *           smaller time segments (hours, day, week, month) and the next (larger)  *
- *           time segment is read only if the requested number of values (<count>)  *
- *           is not yet retrieved.                                                  *
- *                                                                                  *
- ************************************************************************************/
-static int	db_read_values_by_count(zbx_uint64_t itemid, int value_type, zbx_vector_history_record_t *values,
+static int	db_read_values_by_count_table(zbx_uint64_t itemid, int value_type, zbx_vector_history_record_t *values,
 		int count, int end_timestamp)
 {
 	char			*sql = NULL;
@@ -423,14 +391,28 @@ static int	db_read_values_by_count(zbx_uint64_t itemid, int value_type, zbx_vect
 	DB_ROW			row;
 	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
 	char temp_table_name[128];
+	uint64_t min_value;
 
 	clock_to = ((end_timestamp + 1) / SEC_PER_HOUR) * SEC_PER_HOUR;
 	clock_from = (clock_to - SEC_PER_HOUR);
 
+	min_value = db_partition_range(table->name, "MIN");
+	if(min_value == -1){
+		zabbix_log(LOG_LEVEL_ERR, "select [table:%s] failed due to missing all partitions", table->name);
+		return ret;
+	}
+
 	for (step=0; step <= (24*4) && 0 < count; step ++)
 	{
+		if(clock_from <= min_value){
+			clock_from = min_value;
+			if(clock_from >= clock_to){
+				break;
+			}
+		}
+
 		sql_offset = 0;
-		produce_partition(clock_from, table->name, temp_table_name, 128);
+		db_partition_produce_name(clock_from, table->name, temp_table_name, 128);
 		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
 				"select clock,ns,%s"
 				" from %s"
@@ -460,7 +442,7 @@ static int	db_read_values_by_count(zbx_uint64_t itemid, int value_type, zbx_vect
 
 cont:
 		clock_to = clock_to - SEC_PER_HOUR;
-		clock_from = clock_to - SEC_PER_HOUR;
+		clock_from = clock_from - SEC_PER_HOUR;
 	}
 
 	if (0 < count)
@@ -485,6 +467,129 @@ out:
 	zbx_free(sql);
 
 	return ret;
+}
+
+static int	db_read_values_by_count_partitions(zbx_uint64_t itemid, int value_type, zbx_vector_history_record_t *values,
+		int count, int end_timestamp)
+{
+	char			*sql = NULL;
+	size_t	 		sql_alloc = 0, sql_offset;
+	int			clock_to, clock_from, step = 0, ret = FAIL;
+	DB_RESULT		result;
+	DB_ROW			row;
+	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
+	const int		periods[] = {SEC_PER_HOUR, SEC_PER_DAY, SEC_PER_WEEK, SEC_PER_MONTH, 0, -1};
+
+	clock_to = end_timestamp;
+
+	while (-1 != periods[step] && 0 < count)
+	{
+		if (0 > (clock_from = clock_to - periods[step]))
+		{
+			clock_from = clock_to;
+			step = 4;
+		}
+
+		sql_offset = 0;
+		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
+				"select clock,ns,%s"
+				" from %s"
+				" where itemid=" ZBX_FS_UI64
+					" and clock<=%d",
+				table->fields, table->name, itemid, clock_to);
+
+		if (clock_from != clock_to)
+			zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, " and clock>%d", clock_from);
+
+		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, " order by clock desc");
+
+		result = DBselectN(sql, count);
+
+		if (NULL == result)
+			goto out;
+
+		while (NULL != (row = DBfetch(result)))
+		{
+			zbx_history_record_t	value;
+
+			value.timestamp.sec = atoi(row[0]);
+			value.timestamp.ns = atoi(row[1]);
+			table->rtov(&value.value, row + 2);
+
+			zbx_vector_history_record_append_ptr(values, &value);
+
+			count--;
+		}
+		DBfree_result(result);
+
+		clock_to -= periods[step];
+		step++;
+	}
+
+	if (0 < count)
+	{
+		/* no more data in database, return success */
+		ret = SUCCEED;
+		goto out;
+	}
+
+	/* drop data from the last second and read the whole second again  */
+	/* to ensure that data is cached by seconds                        */
+	end_timestamp = values->values[values->values_num - 1].timestamp.sec;
+
+	while (0 < values->values_num && values->values[values->values_num - 1].timestamp.sec == end_timestamp)
+	{
+		values->values_num--;
+		zbx_history_record_clear(&values->values[values->values_num], value_type);
+	}
+
+	ret = db_read_values_by_time(itemid, value_type, values, 1, end_timestamp);
+out:
+	zbx_free(sql);
+
+	return ret;
+}
+
+
+
+/************************************************************************************
+ *                                                                                  *
+ * Purpose: reads item history data from database                                   *
+ *                                                                                  *
+ * Parameters:  itemid        - [IN] the itemid                                     *
+ *              value_type    - [IN] the value type (see ITEM_VALUE_TYPE_* defs)    *
+ *              values        - [OUT] the item history data values                  *
+ *              count         - [IN] the number of values to read                   *
+ *              end_timestamp - [IN] the value timestamp to start reading with      *
+ *                                                                                  *
+ * Return value: SUCCEED - the history data were read successfully                  *
+ *               FAIL - otherwise                                                   *
+ *                                                                                  *
+ * Comments: this function reads <count> values before <count_timestamp> (including)*
+ *           plus all values in range:                                              *
+ *             count_timestamp < <value timestamp> <= read_timestamp                *
+ *                                                                                  *
+ *           To speed up the reading time with huge data loads, data is read by     *
+ *           smaller time segments (hours, day, week, month) and the next (larger)  *
+ *           time segment is read only if the requested number of values (<count>)  *
+ *           is not yet retrieved.                                                  *
+ *                                                                                  *
+ ************************************************************************************/
+static int	db_read_values_by_count(zbx_uint64_t itemid, int value_type, zbx_vector_history_record_t *values,
+		int count, int end_timestamp) {
+	const char*	history_tab="history";
+	const char*	history_uint_tab="history_uint";
+	const char*   history_text_tab="history_text";
+	const char*   history_str_tab="history_str";
+	const char*	history_log_tab="history_log";
+
+	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
+
+	if(strcmp(table->name, history_text_tab) == 0 || strcmp(table->name, history_log_tab) == 0) {
+		return db_read_values_by_count_partitions(itemid, value_type, values, count, end_timestamp);
+	} else {
+		return db_read_values_by_count_table(itemid, value_type, values, count, end_timestamp);
+	}
 }
 
 /************************************************************************************

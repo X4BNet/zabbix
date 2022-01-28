@@ -948,4 +948,6 @@ void	zbx_db_trigger_get_itemids(const DB_TRIGGER *trigger, zbx_vector_uint64_t *
 
 int	DBselect_ids_names(const char *sql, zbx_vector_uint64_t *ids, zbx_vector_str_t *names);
 
+void db_partition_produce_name(uint64_t rawtime, const char* table, char* dest, int dest_size);
+
 #endif
