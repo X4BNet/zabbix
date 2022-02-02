@@ -2919,7 +2919,7 @@ uint64_t db_partition_range(const char* table) {
 	DB_RESULT	result;
 	DB_ROW		row;
 	char* table_esc = DBdyn_escape_string(table);
-	result = DBselect("SELECT MIN(PARTITION_DESCRIPTION) FROM information_schema.partitions WHERE table_schema = database() AND table_name = '%s'", table_esc);
+	result = DBselect("SELECT MIN(CAST(PARTITION_DESCRIPTION AS UNSIGNED)) FROM information_schema.partitions WHERE table_schema = database() AND table_name = '%s'", table_esc);
 	zbx_free(table_esc);
 
 	if (NULL != (row = DBfetch(result)))
