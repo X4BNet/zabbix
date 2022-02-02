@@ -391,7 +391,7 @@ static int	db_read_values_by_count_table(zbx_uint64_t itemid, int value_type, zb
 	DB_ROW			row;
 	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
 	char temp_table_name[128];
-	uint64_t min_value;
+	zbx_uint64_t min_value;
 
 	clock_to = ((end_timestamp + 1) / SEC_PER_HOUR) * SEC_PER_HOUR;
 	clock_from = (clock_to - SEC_PER_HOUR);

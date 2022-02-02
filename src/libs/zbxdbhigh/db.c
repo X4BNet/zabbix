@@ -2914,20 +2914,30 @@ void db_partition_produce_name(uint64_t rawtime, const char* table, char* dest, 
     strftime(temp, dest_size - (temp - dest), "%Y%m%d%H00`", &ts);
 }
 
-uint64_t db_partition_range(const char* table) {
-	uint64_t	ret = -1;
+zbx_uint64_t db_partition_range(const char* table) {
+	static char* db_name = NULL;
+
+	zbx_uint64_t	ret = -1;
 	DB_RESULT	result;
 	DB_ROW		row;
 	char* table_esc = DBdyn_escape_string(table);
-	result = DBselect("SELECT MIN(CAST(PARTITION_DESCRIPTION AS UNSIGNED)) FROM information_schema.partitions WHERE table_schema = database() AND table_name = '%s'", table_esc);
-	zbx_free(table_esc);
+	if(db_name == NULL){
+		db_name = DBdyn_escape_string(CONFIG_DBNAME);
+	}
+	result = DBselect("SELECT MIN(CAST(PARTITION_DESCRIPTION AS UNSIGNED)) FROM `information_schema`.`partitions` WHERE `table_schema`= '%s' AND `table_name`='%s'", db_name, table_esc);
+	if(NULL == result){
+		zabbix_log(LOG_LEVEL_ERR, "getting partitions failed for %s:%s due to missing all partitions", db_name, table_esc);
+		goto out;
+	}
 
 	if (NULL != (row = DBfetch(result)))
 	{
 		ZBX_STR2UINT64(ret, row[0]);
 	}
 
+out:
 	DBfree_result(result);
+	zbx_free(table_esc);
 
 	return ret;
 }
