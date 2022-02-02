@@ -345,7 +345,7 @@ static int	db_read_values_by_time(zbx_uint64_t itemid, int value_type, zbx_vecto
 
 	if (ZBX_JAN_2038 == end_timestamp)
 	{
-		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, " and clock>%d", end_timestamp - seconds);
+		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, " and clock>%d and clock <= UNIX_TIMESTAMP()", end_timestamp - seconds);
 	}
 	else if (1 == seconds)
 	{
