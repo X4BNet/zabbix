@@ -2914,12 +2914,12 @@ void db_partition_produce_name(uint64_t rawtime, const char* table, char* dest, 
     strftime(temp, dest_size - (temp - dest), "%Y%m%d%H00`", &ts);
 }
 
-uint64_t db_partition_range(const char* table, const char* rangeFn) {
+uint64_t db_partition_range(const char* table) {
 	uint64_t	ret = -1;
 	DB_RESULT	result;
 	DB_ROW		row;
 	char* table_esc = DBdyn_escape_string(table);
-	result = DBselect("SELECT %s(PARTITION_DESCRIPTION) FROM information_schema.partitions WHERE table_schema = database() AND table_name = '%s'", rangeFn, table_esc);
+	result = DBselect("SELECT MIN(PARTITION_DESCRIPTION) FROM information_schema.partitions WHERE table_schema = database() AND table_name = '%s'", table_esc);
 	zbx_free(table_esc);
 
 	if (NULL != (row = DBfetch(result)))
@@ -3053,7 +3053,7 @@ int	zbx_db_insert_execute(zbx_db_insert_t *self)
 		}
 
 		if(clock_min != -1){
-			min_value = db_partition_range(table_name, "MIN");
+			min_value = db_partition_range(table_name);
 			if(min_value == -1){
 				zabbix_log(LOG_LEVEL_ERR, "insert [table:%s] failed due to missing all partitions", table_name);
 				goto out;

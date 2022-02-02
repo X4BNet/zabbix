@@ -396,13 +396,13 @@ static int	db_read_values_by_count_table(zbx_uint64_t itemid, int value_type, zb
 	clock_to = ((end_timestamp + 1) / SEC_PER_HOUR) * SEC_PER_HOUR;
 	clock_from = (clock_to - SEC_PER_HOUR);
 
-	min_value = db_partition_range(table->name, "MIN");
+	min_value = db_partition_range(table->name);
 	if(min_value == -1){
 		zabbix_log(LOG_LEVEL_ERR, "select [table:%s] failed due to missing all partitions", table->name);
 		return ret;
 	}
 
-	for (step=0; step <= (24*4) && 0 < count; step ++)
+	for (step=0; step < (24*4) && 0 < count; step ++)
 	{
 		if(clock_from <= min_value){
 			clock_from = min_value;
