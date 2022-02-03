@@ -146,6 +146,8 @@ static void	sql_writer_add_dbinsert(zbx_db_insert_t *db_insert)
 	zbx_vector_ptr_append(&writer.dbinserts, db_insert);
 }
 
+#define ZBX_HISTORY_COMIT_ROWS 256
+
 /************************************************************************************
  *                                                                                  *
  * Purpose: flushes bulk insert data into database                                  *
@@ -153,7 +155,8 @@ static void	sql_writer_add_dbinsert(zbx_db_insert_t *db_insert)
  ************************************************************************************/
 static int	sql_writer_flush(void)
 {
-	int	i, txn_error;
+	int	i, txn_error, start = 0;
+	int rows = 0;
 
 	/* The writer might be uninitialized only if the history */
 	/* was already flushed. In that case, return SUCCEED */
@@ -164,10 +167,26 @@ static int	sql_writer_flush(void)
 	{
 		DBbegin();
 
-		for (i = 0; i < writer.dbinserts.values_num; i++)
+		for (i = start; i < writer.dbinserts.values_num; i++)
 		{
 			zbx_db_insert_t	*db_insert = (zbx_db_insert_t *)writer.dbinserts.values[i];
 			zbx_db_insert_execute(db_insert);
+			rows += db_insert->rows.values_num;
+
+			if(rows > ZBX_HISTORY_COMIT_ROWS)
+			{
+				txn_error = DBcommit();
+				DBbegin();
+				rows = 0;
+				if(txn_error == ZBX_DB_OK)
+				{
+					start = i;
+				}
+				else if(txn_error == ZBX_DB_DOWN)
+				{
+					break;
+				}
+			}
 		}
 	}
 	while (ZBX_DB_DOWN == (txn_error = DBcommit()));
