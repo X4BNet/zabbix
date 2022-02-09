@@ -360,7 +360,7 @@ static int	db_read_values_by_time(zbx_uint64_t itemid, int value_type, zbx_vecto
 
 	if (1 == seconds)
 	{
-		db_partition_produce_name(end_timestamp, table, table_buffer, sizeof(table_buffer));
+		db_partition_produce_name(end_timestamp, table_name, table_buffer, sizeof(table_buffer));
 		table_name = table_buffer;
 	}
 
