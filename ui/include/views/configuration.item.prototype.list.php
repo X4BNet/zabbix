@@ -23,6 +23,8 @@
  * @var CView $this
  */
 
+require_once dirname(__FILE__).'/js/configuration.item.prototype.list.js.php';
+
 $widget = (new CWidget())
 	->setTitle(_('Item prototypes'))
 	->setControls(
@@ -202,8 +204,9 @@ $itemForm->addItem([
 			'popup.massupdate.itemprototype' => [
 				'content' => (new CButton('', _('Mass update')))
 					->onClick(
-						"return openMassupdatePopup('popup.massupdate.itemprototype', {}, {
-							dialogue_class: 'modal-popup-preprocessing'
+						"openMassupdatePopup('popup.massupdate.itemprototype', {}, {
+							dialogue_class: 'modal-popup-preprocessing',
+							trigger_element: this
 						});"
 					)
 					->addClass(ZBX_STYLE_BTN_ALT)
