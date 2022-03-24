@@ -315,6 +315,7 @@ class CHistoryManager {
 					'SELECT MAX(h.clock)'.
 					' FROM '.self::getTableName($item['value_type']).' h'.
 					' WHERE h.itemid='.zbx_dbstr($item['itemid']).
+					' AND h.clock <= '.time().
 						($period ? ' AND h.clock>'.$period : '')
 				), false);
 
@@ -324,7 +325,7 @@ class CHistoryManager {
 					if ($clock_max !== null) {
 						$values = DBfetchArray(DBselect(
 							'SELECT SQL_BUFFER_RESULT *'.
-							' FROM '.self::getTableName($item['value_type']).' h'.
+							' FROM '.self::getTableNameEq($item['value_type'], $clock_max).' h'.
 							' WHERE h.itemid='.zbx_dbstr($item['itemid']).
 								' AND h.clock='.zbx_dbstr($clock_max).
 							' ORDER BY h.ns DESC',
@@ -1447,6 +1448,17 @@ class CHistoryManager {
 		];
 
 		return ($value_type === null) ? $tables : $tables[$value_type];
+	}
+
+	static function getTableNameEq($value_type, $ts = null){
+		if($ts === null){
+			return self::getTableName($value_type);
+		}
+
+		global $DB;
+		
+		$table = $DB['DATABASE_PARTITIONS'].'.'.self::getTableName($value_type).'_p'.date('YmdH', $ts).'00';
+		return $table;
 	}
 
 	/**
