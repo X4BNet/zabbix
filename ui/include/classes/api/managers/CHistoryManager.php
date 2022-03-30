@@ -253,7 +253,7 @@ class CHistoryManager {
 				while ($itemid_clock = DBfetch($max_clock_per_item, false)) {
 					$db_value = DBfetchArray(DBselect(
 						'SELECT *'.
-						' FROM '.$history_table.' h'.
+						' FROM '.self::getTableNameEq($value_type, $itemid_clock['clock']).' h'.
 						' WHERE h.itemid='.zbx_dbstr($itemid_clock['itemid']).
 							' AND h.clock='.zbx_dbstr($itemid_clock['clock']).
 						' ORDER BY h.ns DESC',
@@ -1457,7 +1457,7 @@ class CHistoryManager {
 
 		global $DB;
 		
-		$table = '`'.$DB['DATABASE_PARTITIONS'].'`.'.self::getTableName($value_type).'_p'.date('YmdH', $ts).'00';
+		$table = '`'.$DB['DATABASE_PARTITIONS'].'`.`'.self::getTableName($value_type).'_p'.date('YmdH', $ts).'00`';
 		return $table;
 	}
 

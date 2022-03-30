@@ -93,6 +93,7 @@ class CConfigFile {
 
 		$this->config['DB']['TYPE'] = $DB['TYPE'];
 		$this->config['DB']['DATABASE'] = $DB['DATABASE'];
+		$this->config['DB']['DATABASE_PARTITIONS'] = $DB['DATABASE_PARTITIONS'];
 
 		if (isset($DB['SERVER'])) {
 			$this->config['DB']['SERVER'] = $DB['SERVER'];
