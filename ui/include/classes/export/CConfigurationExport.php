@@ -515,7 +515,6 @@ class CConfigurationExport {
             'selectPreprocessing' => ['type', 'params', 'error_handler', 'error_handler_params'],
             'selectTags' => ['tag', 'value'],
             'hostids' => array_keys($hosts),
-            'inherited' => true,
             'webitems' => true,
             'filter' => ['flags' => ZBX_FLAG_DISCOVERY_NORMAL],
             'preservekeys' => true
