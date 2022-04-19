@@ -138,9 +138,9 @@ class CConfigurationExport {
 				->getSchema();
 
 			$simple_triggers = [];
-			if ($this->data['triggers']) {
+			/*if ($this->data['triggers']) {
 				$simple_triggers = $this->builder->extractSimpleTriggers($this->data['triggers']);
-			}
+			}*/
 
 			if ($this->data['groups']) {
 				$this->builder->buildGroups($schema['rules']['groups'], $this->data['groups']);
