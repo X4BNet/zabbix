@@ -2906,6 +2906,14 @@ void db_partition_produce_name(uint64_t rawtime, const char* table, char* dest, 
     struct tm  ts;
 	char* temp;
 
+	const char* history_text_tab="history_text";
+	const char*	history_log_tab="history_log";
+	
+	if(strcmp(table, history_text_tab) == 0 || strcmp(table, history_log_tab) == 0) {
+		zbx_strlcpy(dest, table, dest_size);
+		return;
+	}
+
     // Format time, "ddd yyyy-mm-dd hh:mm:ss zzz"
     ts = *gmtime(&rawtime);
 	temp = dest + zbx_snprintf(dest, dest_size, "`%s`.`%s_p", CONFIG_DBPARTITIONS, table);
