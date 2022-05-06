@@ -179,6 +179,7 @@ class CConfigurationExport {
 			return $this->writer->write($this->builder->getExport());
 		}
 		catch (CConfigurationExportException $e) {
+            trigger_error($e->getTraceAsString(), E_USER_NOTICE);
 			return false;
 		}
 	}
