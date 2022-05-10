@@ -1017,7 +1017,7 @@ int	DBcheck_double_type(void)
 #if defined(HAVE_MYSQL)
 	sql = DBdyn_escape_string(CONFIG_DBNAME);
 	sql = zbx_dsprintf(sql, "select count(*) from information_schema.columns"
-			" where table_schema='%s' and column_type LIKE 'double%'", sql);
+			" where table_schema='%s' and column_type LIKE 'double%%'", sql);
 #elif defined(HAVE_POSTGRESQL)
 	sql = DBdyn_escape_string(NULL == CONFIG_DBSCHEMA || '\0' == *CONFIG_DBSCHEMA ? "public" : CONFIG_DBSCHEMA);
 	sql = zbx_dsprintf(sql, "select count(*) from information_schema.columns"
