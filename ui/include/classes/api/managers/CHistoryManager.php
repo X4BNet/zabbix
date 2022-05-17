@@ -119,7 +119,10 @@ class CHistoryManager {
 		}
 
 		if (array_key_exists(ZBX_HISTORY_SOURCE_SQL, $grouped_items)) {
-			if ($this->primary_keys_enabled) {
+            if($limit == 1 || $limit == 2){
+                $results += $this->getLastValuesFromSqlItems($grouped_items[ZBX_HISTORY_SOURCE_SQL], $limit);
+            }
+            else if ($this->primary_keys_enabled) {
 				$results += $this->getLastValuesFromSqlWithPk($grouped_items[ZBX_HISTORY_SOURCE_SQL], $limit, $period);
 			}
 			else {
@@ -212,7 +215,43 @@ class CHistoryManager {
 		return $results;
 	}
 
-	/**
+    /**
+     * SQL specific implementation of getLastValues that uses the values stored into the items table for high performance
+     *
+     * @see CHistoryManager::getLastValues
+     * @return array  Of itemid => [up to $limit values].
+     */
+    private function getLastValuesFromSqlItems(array $items, int $limit): array {
+        $results = [];
+
+        $db_values = DBselect(
+            'SELECT i.itemid, i.lastitemvalue, i.lastitemclock, i.previtemvalue, i.previtemclock'.
+            ' FROM items i'.
+            ' WHERE '.dbConditionInt('i.itemid', array_column($items, 'itemid'))
+        );
+
+        while ($db_value = DBfetch($db_values, false)) {
+            if(!$db_value['lastitemclock']) continue;
+            $values = [array(
+                'itemid' => $db_value['itemid'],
+                'value' => $db_value['lastitemvalue'],
+                'clock' => $db_value['lastitemclock']
+            )];
+            if ($limit == 2 && $db_value['previtemclock']) {
+                $values[] = array(
+                    'itemid' => $db_value['itemid'],
+                    'value' => $db_value['previtemvalue'],
+                    'clock' => $db_value['previtemclock']
+                );
+            }
+            $results[$db_value['itemid']] = $values;
+        }
+
+        return $results;
+    }
+
+
+    /**
 	 * SQL specific implementation of getLastValues that makes use of primary key existence in history tables.
 	 *
 	 * @see CHistoryManager::getLastValues
