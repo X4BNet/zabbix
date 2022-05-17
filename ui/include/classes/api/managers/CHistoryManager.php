@@ -120,7 +120,7 @@ class CHistoryManager {
 
 		if (array_key_exists(ZBX_HISTORY_SOURCE_SQL, $grouped_items)) {
             if($limit == 1 || $limit == 2){
-                $results += $this->getLastValuesFromSqlItems($grouped_items[ZBX_HISTORY_SOURCE_SQL], $limit);
+                $results += $this->getLastValuesFromSqlItems($grouped_items[ZBX_HISTORY_SOURCE_SQL], $limit, $period);
             }
             else if ($this->primary_keys_enabled) {
 				$results += $this->getLastValuesFromSqlWithPk($grouped_items[ZBX_HISTORY_SOURCE_SQL], $limit, $period);
@@ -221,8 +221,26 @@ class CHistoryManager {
      * @see CHistoryManager::getLastValues
      * @return array  Of itemid => [up to $limit values].
      */
-    private function getLastValuesFromSqlItems(array $items, int $limit): array {
+    private function getLastValuesFromSqlItems(array $items, int $limit, ?int $period): array {
         $results = [];
+
+        if ($period) {
+            $period = time() - $period;
+        }
+
+		$items_by_type = [];
+
+		foreach ($items as $key => $item) {
+            $value_type = $item['value_type'];
+            if($value_type != ITEM_VALUE_TYPE_TEXT && $value_type != ITEM_VALUE_TYPE_LOG) continue;
+
+            if (!array_key_exists($value_type, $items_by_type)) {
+                $items_by_type[$value_type] = [];
+            }
+
+            $items_by_type[$value_type][] = $item;
+            unset($items[$key]);
+        }
 
         $db_values = DBselect(
             'SELECT i.itemid, i.lastitemvalue, i.lastitemclock, i.previtemvalue, i.previtemclock'.
@@ -245,6 +263,60 @@ class CHistoryManager {
                 );
             }
             $results[$db_value['itemid']] = $values;
+        }
+
+        if ($limit == 1) {
+            foreach ($items_by_type as $value_type => $items) {
+                $history_table = self::getTableName($value_type);
+
+                $max_clock_per_item = DBselect(
+                    'SELECT h.itemid, MAX(h.clock) AS clock'.
+                    ' FROM '.$history_table.' h'.
+                    ' WHERE '.dbConditionId('h.itemid', array_column($items, 'itemid')).
+                    ($period ? ' AND h.clock > '.$period : '').
+                    ' GROUP BY h.itemid'
+                );
+
+                while ($itemid_clock = DBfetch($max_clock_per_item, false)) {
+                    $db_value = DBfetchArray(DBselect(
+                        'SELECT *'.
+                        ' FROM '.self::getTableNameEq($value_type, $itemid_clock['clock']).' h'.
+                        ' WHERE h.itemid='.zbx_dbstr($itemid_clock['itemid']).
+                        ' AND h.clock='.zbx_dbstr($itemid_clock['clock']).
+                        ' ORDER BY h.ns DESC',
+                        $limit
+                    ));
+
+                    if ($db_value) {
+                        $results[$itemid_clock['itemid']] = $db_value;
+                    }
+                }
+            }
+        }
+        else {
+            foreach ($items_by_type as $value_type => $items) {
+                $history_table = self::getTableName($value_type);
+
+                foreach ($items as $item) {
+                    $db_values = DBselect('SELECT *'.
+                        ' FROM '.$history_table.' h'.
+                        ' WHERE h.itemid='.zbx_dbstr($item['itemid']).
+                        ($period ? ' AND h.clock > '.$period : '').
+                        ' ORDER BY h.clock DESC, h.ns DESC',
+                        $limit
+                    );
+
+                    $values = [];
+
+                    while ($db_value = DBfetch($db_values, false)) {
+                        $values[] = $db_value;
+                    }
+
+                    if ($values) {
+                        $results[$item['itemid']] = $values;
+                    }
+                }
+            }
         }
 
         return $results;
