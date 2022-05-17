@@ -1584,7 +1584,7 @@ class CHistoryManager {
 
 		global $DB;
 		
-		$table = '`'.$DB['DATABASE_PARTITIONS'].'`.`'.self::getTableName($value_type).'_p'.date('YmdH', $ts).'00`';
+		$table = '`'.$DB['DATABASE_PARTITIONS'].'`.`'.self::getTableName($value_type).'_p'.gmdate('YmdH', $ts).'00`';
 		return $table;
 	}
 
