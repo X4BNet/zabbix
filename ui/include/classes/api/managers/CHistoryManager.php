@@ -79,10 +79,26 @@ class CHistoryManager {
 		$items = zbx_toHash($items, 'itemid');
 
 		$itemids_by_type = [];
-
+        $item_ids = [];
 		foreach ($items as $itemid => $item) {
-			$itemids_by_type[$item['value_type']][] = $itemid;
+            $value_type = $item['value_type'];
+            if($value_type != ITEM_VALUE_TYPE_TEXT && $value_type != ITEM_VALUE_TYPE_LOG) {
+                $item_ids[] = $itemid;
+            } else {
+                $itemids_by_type[$item['value_type']][] = $itemid;
+            }
 		}
+
+        $db_values = DBselect(
+            'SELECT i.itemid'.
+            ' FROM items i'.
+            ' WHERE '.dbConditionInt('i.itemid', $item_ids) .
+            ' AND i.lastitemclock<>0'
+        );
+        while ($db_value = DBfetch($db_values)) {
+            $results[$db_value['itemid']] = $items[$db_value['itemid']];
+        }
+
 
 		foreach ($itemids_by_type as $type => $type_itemids) {
 			$type_results = DBfetchColumn(DBselect(
