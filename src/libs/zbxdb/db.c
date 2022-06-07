@@ -1461,16 +1461,31 @@ int	zbx_db_vexecute(const char *fmt, va_list args)
 	else
 	{
 		zbx_err_codes_t	errcode;
+		int attempt = 0;
+		int mysqlerr;
 
-		if (0 != mysql_query(conn, sql))
+		while (0 != mysql_query(conn, sql))
 		{
-			errcode = (ER_DUP_ENTRY == mysql_errno(conn) ? ERR_Z3008 : ERR_Z3005);
-			zbx_db_errlog(errcode, mysql_errno(conn), mysql_error(conn), sql);
+			mysqlerr = mysql_errno(conn);
+			errcode = (ER_DUP_ENTRY == mysqlerr ? ERR_Z3008 : ERR_Z3005);
 
-			ret = (SUCCEED == is_recoverable_mysql_error() ? ZBX_DB_DOWN : ZBX_DB_FAIL);
+			// 8 attempts for deadlock errors
+			if(++attempt == 8) {
+				break;
+			}
+
+			// only do multiple attempts for deadlock errors
+			if(mysqlerr != 1213) {
+				attempt = 8;
+				break;
+			}
 		}
-		else
+		
+		if(attempt == 8)
 		{
+			zbx_db_errlog(errcode, mysql_errno(conn), mysql_error(conn), sql);
+			ret = (SUCCEED == is_recoverable_mysql_error() ? ZBX_DB_DOWN : ZBX_DB_FAIL);
+		} else {
 			int	status;
 
 			do
