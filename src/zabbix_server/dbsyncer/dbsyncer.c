@@ -85,7 +85,7 @@ static void	db_trigger_queue_cleanup(void)
 ZBX_THREAD_ENTRY(dbsyncer_thread, args)
 {
 	int		sleeptime = -1, total_values_num = 0, values_num, more, total_triggers_num = 0, triggers_num;
-	double		sec, total_sec = 0.0;
+	double		sec, total_sec = 0.0, elapsed_sec;
 	time_t		last_stat_time;
 	char		*stats = NULL;
 	const char	*process_name;
@@ -149,7 +149,8 @@ ZBX_THREAD_ENTRY(dbsyncer_thread, args)
 
 		total_values_num += values_num;
 		total_triggers_num += triggers_num;
-		total_sec += zbx_time() - sec;
+		elapsed_sec = zbx_time() - sec;
+		total_sec += elapsed_sec;
 
 		sleeptime = (ZBX_SYNC_MORE == more ? 0 : CONFIG_HISTSYNCER_FREQUENCY);
 
@@ -182,6 +183,10 @@ ZBX_THREAD_ENTRY(dbsyncer_thread, args)
 
 		if (!ZBX_IS_RUNNING())
 			break;
+
+		if(elapsed_sec >= sleeptime) {
+			sleeptime = 0;
+		}
 
 		zbx_sleep_loop(sleeptime);
 	}

@@ -58,7 +58,7 @@ extern char		*CONFIG_EXPORT_DIR;
 
 #define ZBX_IDS_SIZE	10
 
-#define ZBX_HC_ITEMS_INIT_SIZE	1000
+#define ZBX_HC_ITEMS_INIT_SIZE	300
 
 #define ZBX_TRENDS_CLEANUP_TIME	((SEC_PER_HOUR * 55) / 60)
 
@@ -66,9 +66,9 @@ extern char		*CONFIG_EXPORT_DIR;
 #define ZBX_HC_SYNC_TIME_MAX	10
 
 /* the maximum number of items in one synchronization batch */
-#define ZBX_HC_SYNC_MAX		1000
+#define ZBX_HC_SYNC_MAX		300
 #define ZBX_HC_TIMER_MAX	(ZBX_HC_SYNC_MAX / 2)
-#define ZBX_HC_TIMER_SOFT_MAX	(ZBX_HC_TIMER_MAX - 10)
+#define ZBX_HC_TIMER_SOFT_MAX	(ZBX_HC_TIMER_MAX - 100)
 
 /* the minimum processed item percentage of item candidates to continue synchronizing */
 #define ZBX_HC_SYNC_MIN_PCNT	10
