@@ -2927,11 +2927,13 @@ zbx_uint64_t db_partition_range(const char* table) {
 	DB_RESULT	result;
 	DB_ROW		row;
 	char* table_esc = DBdyn_escape_string(table);
-	if(db_name == NULL){
+	if(db_name == NULL)
+	{
 		db_name = DBdyn_escape_string(CONFIG_DBNAME);
 	}
 	result = DBselect("SELECT MIN(CAST(PARTITION_DESCRIPTION AS UNSIGNED)) FROM `information_schema`.`partitions` WHERE `table_schema`= '%s' AND `table_name`='%s'", db_name, table_esc);
-	if(NULL == result){
+	if(NULL == result)
+	{
 		zabbix_log(LOG_LEVEL_ERR, "getting partitions failed for %s:%s due to missing all partitions", db_name, table_esc);
 		goto out;
 	}
@@ -2941,8 +2943,8 @@ zbx_uint64_t db_partition_range(const char* table) {
 		ZBX_STR2UINT64(ret, row[0]);
 	}
 
-out:
 	DBfree_result(result);
+out:
 	zbx_free(table_esc);
 
 	return ret;
