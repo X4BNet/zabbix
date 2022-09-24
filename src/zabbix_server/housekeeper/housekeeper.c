@@ -587,16 +587,6 @@ static int	housekeeping_history_and_trends(int now)
 		if (ZBX_HK_MODE_DISABLED == *rule->poption_mode)
 			continue;
 
-		/* If partitioning enabled for history and/or trends then drop partitions with expired history.  */
-		/* ZBX_HK_MODE_PARTITION is set during configuration sync based on the following: */
-		/* 1. "Override item history (or trend) period" must be on 2. DB must be PostgreSQL */
-		/* 3. config.db.extension must be set to "timescaledb" */
-		if (ZBX_HK_MODE_PARTITION == *rule->poption_mode)
-		{
-			hk_drop_partition_for_rule(rule, now);
-			continue;
-		}
-
 		/* process delete queue for the housekeeping rule */
 
 		zbx_vector_ptr_sort(&rule->delete_queue, hk_item_update_cache_compare);
@@ -1137,7 +1127,7 @@ ZBX_THREAD_ENTRY(housekeeper_thread, args)
 		sleeptime = HOUSEKEEPER_STARTUP_DELAY * SEC_PER_MIN;
 		zbx_setproctitle("%s [startup idle for %d minutes]", get_process_type_string(process_type),
 				HOUSEKEEPER_STARTUP_DELAY);
-		zbx_snprintf(sleeptext, sizeof(sleeptext), "idle for %d hour(s)", CONFIG_HOUSEKEEPING_FREQUENCY);
+		zbx_snprintf(sleeptext, sizeof(sleeptext), "idle for %d minute(s)", CONFIG_HOUSEKEEPING_FREQUENCY*15);
 	}
 
 	hk_history_compression_init();
@@ -1181,7 +1171,7 @@ ZBX_THREAD_ENTRY(housekeeper_thread, args)
 		if (0 == CONFIG_HOUSEKEEPING_FREQUENCY)
 			sleeptime = ZBX_IPC_WAIT_FOREVER;
 		else
-			sleeptime = CONFIG_HOUSEKEEPING_FREQUENCY * SEC_PER_HOUR;
+			sleeptime = CONFIG_HOUSEKEEPING_FREQUENCY * 15 * 60;
 
 		time_now = zbx_time();
 		time_slept = time_now - sec;

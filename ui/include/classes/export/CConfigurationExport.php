@@ -138,9 +138,9 @@ class CConfigurationExport {
 				->getSchema();
 
 			$simple_triggers = [];
-			if ($this->data['triggers']) {
+			/*if ($this->data['triggers']) {
 				$simple_triggers = $this->builder->extractSimpleTriggers($this->data['triggers']);
-			}
+			}*/
 
 			if ($this->data['groups']) {
 				$this->builder->buildGroups($schema['rules']['groups'], $this->data['groups']);
@@ -179,6 +179,7 @@ class CConfigurationExport {
 			return $this->writer->write($this->builder->getExport());
 		}
 		catch (CConfigurationExportException $e) {
+            trigger_error($e->getTraceAsString(), E_USER_NOTICE);
 			return false;
 		}
 	}
@@ -497,6 +498,7 @@ class CConfigurationExport {
 	 * @return array
 	 */
 	protected function gatherItems(array $hosts) {
+        // all the items of this template
 		$items = API::Item()->get([
 			'output' => $this->dataFields['item'],
 			'selectPreprocessing' => ['type', 'params', 'error_handler', 'error_handler_params'],
@@ -508,14 +510,25 @@ class CConfigurationExport {
 			'preservekeys' => true
 		]);
 
+        // all the items that can be used for export
+        $items_all = API::Item()->get([
+            'output' => $this->dataFields['item'],
+            'selectPreprocessing' => ['type', 'params', 'error_handler', 'error_handler_params'],
+            'selectTags' => ['tag', 'value'],
+            'hostids' => array_keys($hosts),
+            'webitems' => true,
+            'filter' => ['flags' => ZBX_FLAG_DISCOVERY_NORMAL],
+            'preservekeys' => true
+        ]);
+
 		foreach ($items as $itemid => &$item) {
 			if ($item['type'] == ITEM_TYPE_DEPENDENT) {
-				if (array_key_exists($item['master_itemid'], $items)) {
-					$item['master_item'] = ['key_' => $items[$item['master_itemid']]['key_']];
+				if (array_key_exists($item['master_itemid'], $items_all)) {
+					$item['master_item'] = ['key_' => $items_all[$item['master_itemid']]['key_']];
 				}
 				else {
-					// Do not export dependent items with master item from template.
-					unset($items[$itemid]);
+                    // Do not export item (we could not find the parent!)
+                    unset($items[$itemid]);
 				}
 			}
 		}

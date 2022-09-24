@@ -65,7 +65,7 @@ define('ZBX_MAX_TIMESHIFT',	788400000); // Max valid timeshift value in seconds 
 
 define('ZBX_GEOMAP_MAX_ZOOM', 30); // Max zoom level for geomap.
 
-define('ZBX_MAX_GRAPHS_PER_PAGE', 20);
+define('ZBX_MAX_GRAPHS_PER_PAGE', 100);
 
 define('SUBFILTER_VALUES_PER_GROUP', 1000); // Number of subfilter values per group.
 
@@ -530,7 +530,7 @@ define('SNMP_V2C', 2);
 define('SNMP_V3', 3);
 
 define('ZBX_DEPENDENT_ITEM_MAX_LEVELS',	3);
-define('ZBX_DEPENDENT_ITEM_MAX_COUNT',	29999);
+define('ZBX_DEPENDENT_ITEM_MAX_COUNT',	299999);
 
 define('ITEM_VALUE_TYPE_FLOAT',		0);
 define('ITEM_VALUE_TYPE_STR',		1); // aka Character

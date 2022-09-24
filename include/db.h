@@ -26,6 +26,7 @@
 
 extern char	*CONFIG_DBHOST;
 extern char	*CONFIG_DBNAME;
+extern char	*CONFIG_DBPARTITIONS;
 extern char	*CONFIG_DBSCHEMA;
 extern char	*CONFIG_DBUSER;
 extern char	*CONFIG_DBPASSWORD;
@@ -655,6 +656,7 @@ void	DBregister_host_clean(zbx_vector_ptr_t *autoreg_hosts);
 void	DBproxy_register_host(const char *host, const char *ip, const char *dns, unsigned short port,
 		unsigned int connection_type, const char *host_metadata, unsigned short flag);
 int	DBexecute_overflowed_sql(char **sql, size_t *sql_alloc, size_t *sql_offset);
+int	DBexecute_overflowed_sql_PK(char **sql, size_t *sql_alloc, size_t *sql_offset);
 char	*DBget_unique_hostname_by_sample(const char *host_name_sample, const char *field_name);
 
 const char	*DBsql_id_ins(zbx_uint64_t id);
@@ -975,5 +977,8 @@ void	zbx_db_trigger_get_itemids(const DB_TRIGGER *trigger, zbx_vector_uint64_t *
 int	DBselect_ids_names(const char *sql, zbx_vector_uint64_t *ids, zbx_vector_str_t *names);
 
 int	zbx_db_check_version_info(struct zbx_db_version_info_t *info, int allow_unsupported);
+void db_partition_produce_name(uint64_t rawtime, const char* table, char* dest, int dest_size);
+
+zbx_uint64_t db_partition_range(const char* table);
 
 #endif

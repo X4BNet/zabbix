@@ -168,7 +168,7 @@ ZBX_THREAD_ENTRY(housekeeper_thread, args)
 		sleeptime = HOUSEKEEPER_STARTUP_DELAY * SEC_PER_MIN;
 		zbx_setproctitle("%s [startup idle for %d minutes]", get_process_type_string(process_type),
 				HOUSEKEEPER_STARTUP_DELAY);
-		zbx_snprintf(sleeptext, sizeof(sleeptext), "idle for %d hour(s)", CONFIG_HOUSEKEEPING_FREQUENCY);
+		zbx_snprintf(sleeptext, sizeof(sleeptext), "idle for %d minutes(s)", CONFIG_HOUSEKEEPING_FREQUENCY * 15);
 	}
 
 	zbx_rtc_subscribe(&rtc, process_type, process_num);
@@ -210,7 +210,7 @@ ZBX_THREAD_ENTRY(housekeeper_thread, args)
 		if (0 == CONFIG_HOUSEKEEPING_FREQUENCY)
 			sleeptime = ZBX_IPC_WAIT_FOREVER;
 		else
-			sleeptime = CONFIG_HOUSEKEEPING_FREQUENCY * SEC_PER_HOUR;
+			sleeptime = CONFIG_HOUSEKEEPING_FREQUENCY * 15; // per 15 minutes
 
 		time_now = zbx_time();
 		time_slept = time_now - sec;

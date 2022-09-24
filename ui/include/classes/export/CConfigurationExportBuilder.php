@@ -584,14 +584,7 @@ class CConfigurationExportBuilder {
 		$simple_trigger_prototypes = [];
 
 		foreach ($discoveryRules as $discoveryRule) {
-			foreach ($discoveryRule['triggerPrototypes'] as $i => $trigger_prototype) {
-				if (count($trigger_prototype['items']) == 1) {
-					$simple_trigger_prototypes[] = $trigger_prototype;
-					unset($discoveryRule['triggerPrototypes'][$i]);
-				}
-			}
-
-			$data = [
+            $data = [
 				'uuid' => $discoveryRule['uuid'],
 				'name' => $discoveryRule['name'],
 				'type' => $discoveryRule['type'],

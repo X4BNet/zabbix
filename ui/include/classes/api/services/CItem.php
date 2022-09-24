@@ -1210,9 +1210,8 @@ class CItem extends CItemGeneral {
 			$requestedOutput['prevvalue'] = true;
 		}
 		if ($requestedOutput) {
-			$history = Manager::History()->getLastValues($result, 2, timeUnitToSeconds(CSettingsHelper::get(
-				CSettingsHelper::HISTORY_PERIOD
-			)));
+			$historyTime = empty($options['lastsearchtime']) ? CSettingsHelper::get(CSettingsHelper::HISTORY_PERIOD) : $options['lastsearchtime'];
+			$history = Manager::History()->getLastValues($result, (!empty($requestedOutput['prevvalue'] && $requestedOutput['prevvalue']))?2:1, timeUnitToSeconds($historyTime));
 			foreach ($result as &$item) {
 				$lastHistory = isset($history[$item['itemid']][0]) ? $history[$item['itemid']][0] : null;
 				$prevHistory = isset($history[$item['itemid']][1]) ? $history[$item['itemid']][1] : null;

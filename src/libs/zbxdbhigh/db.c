@@ -1997,6 +1997,46 @@ int	DBexecute_overflowed_sql(char **sql, size_t *sql_alloc, size_t *sql_offset)
 	return ret;
 }
 
+ /******************************************************************************
+  *                                                                            *
+ * Function: DBexecute_overflowed_sql_PK                                      *
+ *                                                                            *
+ * Purpose: execute a set of SQL statements IF it is big enough and field     *
+ * have PK and value field                                                    *
+ *                                                                            *
+ * Author: Dmitry Borovikov                                                   *
+ *                                                                            *
+ ******************************************************************************/
+int    DBexecute_overflowed_sql_PK(char **sql, size_t *sql_alloc, size_t *sql_offset)
+{
+	int ret = SUCCEED;
+
+	if (ZBX_MAX_SQL_SIZE < *sql_offset)
+	{
+#ifdef HAVE_MULTIROW_INSERT
+		if (',' == (*sql)[*sql_offset - 1])
+		{
+			(*sql_offset)--;
+#			ifdef HAVE_MYSQL
+			zbx_strcpy_alloc(sql, sql_alloc, sql_offset, " ON DUPLICATE KEY UPDATE value=VALUES(value);\n");
+#			else
+			zbx_strcpy_alloc(sql, sql_alloc, sql_offset, ";\n");
+#			endif
+		}
+#			endif
+		DBend_multiple_update(sql, sql_alloc, sql_offset);
+
+		if (ZBX_DB_OK > DBexecute("%s", *sql))
+			ret = FAIL;
+			*sql_offset = 0;
+
+			DBbegin_multiple_update(sql, sql_alloc, sql_offset);
+		}
+
+	return ret;
+}
+
+
 /******************************************************************************
  *                                                                            *
  * Purpose: construct a unique host name by the given sample                  *
@@ -2994,6 +3034,59 @@ void	zbx_db_insert_add_values(zbx_db_insert_t *self, ...)
 	zbx_vector_ptr_destroy(&values);
 }
 
+static int strprefix(const char *pre, const char *str)
+{
+    return strncmp(pre, str, strlen(pre));
+}
+
+void db_partition_produce_name(uint64_t rawtime, const char* table, char* dest, int dest_size){
+    struct tm  ts;
+	char* temp;
+
+	const char* history_text_tab="history_text";
+	const char*	history_log_tab="history_log";
+	
+	if(strcmp(table, history_text_tab) == 0 || strcmp(table, history_log_tab) == 0) {
+		zbx_strlcpy(dest, table, dest_size);
+		return;
+	}
+
+    // Format time, "ddd yyyy-mm-dd hh:mm:ss zzz"
+    ts = *gmtime(&rawtime);
+	temp = dest + zbx_snprintf(dest, dest_size, "`%s`.`%s_p", CONFIG_DBPARTITIONS, table);
+    strftime(temp, dest_size - (temp - dest), "%Y%m%d%H00`", &ts);
+}
+
+zbx_uint64_t db_partition_range(const char* table) {
+	static char* db_name = NULL;
+
+	zbx_uint64_t	ret = -1;
+	DB_RESULT	result;
+	DB_ROW		row;
+	char* table_esc = DBdyn_escape_string(table);
+	if(db_name == NULL)
+	{
+		db_name = DBdyn_escape_string(CONFIG_DBNAME);
+	}
+	result = DBselect("SELECT MIN(CAST(PARTITION_DESCRIPTION AS UNSIGNED)) FROM `information_schema`.`partitions` WHERE `table_schema`= '%s' AND `table_name`='%s'", db_name, table_esc);
+	if(NULL == result)
+	{
+		zabbix_log(LOG_LEVEL_ERR, "getting partitions failed for %s:%s due to missing all partitions", db_name, table_esc);
+		goto out;
+	}
+
+	if (NULL != (row = DBfetch(result)))
+	{
+		ZBX_STR2UINT64(ret, row[0]);
+	}
+
+	DBfree_result(result);
+out:
+	zbx_free(table_esc);
+
+	return ret;
+}
+
 /******************************************************************************
  *                                                                            *
  * Purpose: executes the prepared database bulk insert operation              *
@@ -3007,6 +3100,13 @@ void	zbx_db_insert_add_values(zbx_db_insert_t *self, ...)
 int	zbx_db_insert_execute(zbx_db_insert_t *self)
 {
 	int		ret = FAIL, i, j;
+	int		isHistory = 0;
+	const char*	history_tab="history";
+	const char*	history_uint_tab="history_uint";
+	const char*   history_text_tab="history_text";
+	const char*   history_str_tab="history_str";
+	const char*	history_log_tab="history_log";
+
 	const ZBX_FIELD	*field;
 	char		*sql_command, delim[2] = {',', '('};
 	size_t		sql_command_alloc = 512, sql_command_offset = 0;
@@ -3023,9 +3123,27 @@ int	zbx_db_insert_execute(zbx_db_insert_t *self)
 	zbx_db_bind_context_t	*contexts;
 	int			rc, tries = 0;
 #endif
+	const char* table_name;
+	uint64_t clock_min = -1, clock_max = 0;
+	char partition_min[128], partition_max[128];
+
+	uint64_t min_value;
 
 	if (0 == self->rows.values_num)
 		return SUCCEED;
+
+#ifdef HAVE_MYSQL
+	if(strprefix(history_tab, self->table->table) == 0) {
+		if(strcmp(self->table->table, history_tab) == 0 || strcmp(self->table->table, history_uint_tab) == 0 || strcmp(self->table->table, history_str_tab) == 0)
+			isHistory = 2;
+		else if(strcmp(self->table->table, history_text_tab) == 0 || strcmp(self->table->table, history_log_tab) == 0)
+			isHistory = 1;
+	}
+	zabbix_log(LOG_LEVEL_DEBUG, "zbx_db_insert_execute: in HAVE_MYSQL: history_tab=[%s], history_uint_tab=[%s], history_text_tab=[%s], history_str_tab=[%s], history_log_tab=[%s}, isHistory=[%d]", history_tab,history_uint_tab,history_text_tab,history_str_tab,history_log_tab,isHistory);
+#endif
+
+	zabbix_log(LOG_LEVEL_DEBUG, "zbx_db_insert_execute: table=[%s], isHistory=[%d]", self->table->table, isHistory);
+
 
 	/* process the auto increment field */
 	if (-1 != self->autoincrement)
@@ -3050,7 +3168,69 @@ int	zbx_db_insert_execute(zbx_db_insert_t *self)
 	/* create sql insert statement command */
 
 	zbx_strcpy_alloc(&sql_command, &sql_command_alloc, &sql_command_offset, "insert into ");
-	zbx_strcpy_alloc(&sql_command, &sql_command_alloc, &sql_command_offset, self->table->table);
+
+	table_name = self->table->table;
+#ifdef HAVE_MYSQL
+	if(isHistory == 2){
+		for (j = 0; j < self->fields.values_num; j++){
+			field = (const ZBX_FIELD *)self->fields.values[j];
+
+			if(strcmp(field->name, "clock") == 0){
+				for (i = 0; i < self->rows.values_num; i++)
+				{
+					zbx_db_value_t	*values = (zbx_db_value_t *)self->rows.values[i];
+					const zbx_db_value_t	*value = &values[j];
+					uint64_t clock_val;
+
+					switch(field->type){
+						case ZBX_TYPE_UINT:
+							clock_val = value->ui64;
+							if(clock_val > clock_max){
+								clock_max = clock_val;
+							}
+							if(clock_val < clock_min){
+								clock_min = clock_val;
+							}
+							break;
+						case ZBX_TYPE_INT:
+							clock_val = (uint64_t)value->i32;
+							if(clock_val > clock_max){
+								clock_max = clock_val;
+							}
+							if(clock_val < clock_min){
+								clock_min = clock_val;
+							}
+							break;
+					}
+				}
+				break;
+			}
+		}
+
+		if(clock_min != -1){
+			min_value = db_partition_range(table_name);
+			if(min_value == -1){
+				zabbix_log(LOG_LEVEL_ERR, "insert [table:%s] failed due to missing all partitions", table_name);
+				goto out;
+			}
+			if(clock_min <= min_value){
+				clock_min = min_value;
+				if(clock_max <= min_value){
+					clock_max = min_value;
+				}
+			}
+
+			// If min and max are the same partition then we can optimize out the CONNECT table
+			db_partition_produce_name(clock_min, table_name, partition_min, sizeof(partition_min));
+			db_partition_produce_name(clock_max, table_name, partition_max, sizeof(partition_max));
+			if(strcmp(partition_min, partition_max) == 0) {
+				table_name = partition_min;
+			}
+		}
+	}
+#endif
+
+	zbx_strcpy_alloc(&sql_command, &sql_command_alloc, &sql_command_offset, table_name);
 	zbx_chrcpy_alloc(&sql_command, &sql_command_alloc, &sql_command_offset, ' ');
 
 	for (i = 0; i < self->fields.values_num; i++)
@@ -3204,10 +3384,20 @@ retry_oracle:
 			zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, sql_values);
 #	endif
 
-		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ")" ZBX_ROW_DL);
 
+	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ")" ZBX_ROW_DL);
+#	ifdef HAVE_MYSQL
+		if(isHistory == 1){
+			ret = DBexecute_overflowed_sql_PK(&sql, &sql_alloc, &sql_offset);
+		} else{
+			ret = DBexecute_overflowed_sql(&sql, &sql_alloc, &sql_offset);
+		}
+		if (SUCCEED != ret)
+			goto out;
+#	else
 		if (SUCCEED != (ret = DBexecute_overflowed_sql(&sql, &sql_alloc, &sql_offset)))
 			goto out;
+#	endif
 	}
 
 	if (16 < sql_offset)
@@ -3216,9 +3406,19 @@ retry_oracle:
 		if (',' == sql[sql_offset - 1])
 		{
 			sql_offset--;
+#		ifdef HAVE_MYSQL
+			if(isHistory){
+				zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, " ON DUPLICATE KEY UPDATE value=VALUES(value);\n");
+			}else{
+				zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
+			}
+#		else
 			zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
+#		endif
 		}
 #	endif
+		zabbix_log(LOG_LEVEL_DEBUG, "zbx_db_insert_execute: isHistory=[%d], sql=[%s]", isHistory, sql);
+
 		DBend_multiple_update(sql, sql_alloc, sql_offset);
 
 		if (ZBX_DB_OK > DBexecute("%s", sql))

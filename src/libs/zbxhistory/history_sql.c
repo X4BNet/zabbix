@@ -18,6 +18,7 @@
 **/
 
 #include "common.h"
+#include "log.h"
 #include "zbxalgo.h"
 #include "db.h"
 #include "dbcache.h"
@@ -145,6 +146,8 @@ static void	sql_writer_add_dbinsert(zbx_db_insert_t *db_insert)
 	zbx_vector_ptr_append(&writer.dbinserts, db_insert);
 }
 
+#define ZBX_HISTORY_COMIT_ROWS 256
+
 /************************************************************************************
  *                                                                                  *
  * Purpose: flushes bulk insert data into database                                  *
@@ -152,7 +155,8 @@ static void	sql_writer_add_dbinsert(zbx_db_insert_t *db_insert)
  ************************************************************************************/
 static int	sql_writer_flush(void)
 {
-	int	i, txn_error;
+	int	i, txn_error, start = 0;
+	int rows = 0;
 
 	/* The writer might be uninitialized only if the history */
 	/* was already flushed. In that case, return SUCCEED */
@@ -163,10 +167,26 @@ static int	sql_writer_flush(void)
 	{
 		DBbegin();
 
-		for (i = 0; i < writer.dbinserts.values_num; i++)
+		for (i = start; i < writer.dbinserts.values_num; i++)
 		{
 			zbx_db_insert_t	*db_insert = (zbx_db_insert_t *)writer.dbinserts.values[i];
 			zbx_db_insert_execute(db_insert);
+			rows += db_insert->rows.values_num;
+
+			if(rows > ZBX_HISTORY_COMIT_ROWS)
+			{
+				txn_error = DBcommit();
+				DBbegin();
+				rows = 0;
+				if(txn_error == ZBX_DB_OK)
+				{
+					start = i;
+				}
+				else if(txn_error == ZBX_DB_DOWN)
+				{
+					break;
+				}
+			}
 		}
 	}
 	while (ZBX_DB_DOWN == (txn_error = DBcommit()));
@@ -333,16 +353,24 @@ static int	db_read_values_by_time(zbx_uint64_t itemid, int value_type, zbx_vecto
 	DB_RESULT		result;
 	DB_ROW			row;
 	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
+	const char table_buffer[64];
+	const char* table_name = table->name;
+
+	if (1 == seconds)
+	{
+		db_partition_produce_name(end_timestamp, table_name, table_buffer, sizeof(table_buffer));
+		table_name = table_buffer;
+	}
 
 	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
-			"select clock,ns,%s"
+			"select SQL_BUFFER_RESULT clock,ns,%s"
 			" from %s"
 			" where itemid=" ZBX_FS_UI64,
-			table->fields, table->name, itemid);
+			table->fields, table_name, itemid);
 
 	if (ZBX_JAN_2038 == end_timestamp)
 	{
-		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, " and clock>%d", end_timestamp - seconds);
+		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, " and clock>%d and clock <= UNIX_TIMESTAMP()", end_timestamp - seconds);
 	}
 	else if (1 == seconds)
 	{
@@ -376,30 +404,97 @@ out:
 	return SUCCEED;
 }
 
-/************************************************************************************
- *                                                                                  *
- * Purpose: reads item history data from database                                   *
- *                                                                                  *
- * Parameters:  itemid        - [IN] the itemid                                     *
- *              value_type    - [IN] the value type (see ITEM_VALUE_TYPE_* defs)    *
- *              values        - [OUT] the item history data values                  *
- *              count         - [IN] the number of values to read                   *
- *              end_timestamp - [IN] the value timestamp to start reading with      *
- *                                                                                  *
- * Return value: SUCCEED - the history data were read successfully                  *
- *               FAIL - otherwise                                                   *
- *                                                                                  *
- * Comments: this function reads <count> values before <count_timestamp> (including)*
- *           plus all values in range:                                              *
- *             count_timestamp < <value timestamp> <= read_timestamp                *
- *                                                                                  *
- *           To speed up the reading time with huge data loads, data is read by     *
- *           smaller time segments (hours, day, week, month) and the next (larger)  *
- *           time segment is read only if the requested number of values (<count>)  *
- *           is not yet retrieved.                                                  *
- *                                                                                  *
- ************************************************************************************/
-static int	db_read_values_by_count(zbx_uint64_t itemid, int value_type, zbx_vector_history_record_t *values,
+
+
+static int	db_read_values_by_count_table(zbx_uint64_t itemid, int value_type, zbx_vector_history_record_t *values,
+		int count, int end_timestamp)
+{
+	char			*sql = NULL;
+	size_t	 		sql_alloc = 0, sql_offset;
+	int			clock_to, clock_from, step = 0, ret = FAIL;
+	DB_RESULT		result;
+	DB_ROW			row;
+	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
+	char temp_table_name[128];
+	zbx_uint64_t min_value;
+
+	clock_to = ((end_timestamp + 1) / SEC_PER_HOUR) * SEC_PER_HOUR;
+	clock_from = (clock_to - SEC_PER_HOUR);
+
+	min_value = db_partition_range(table->name);
+	if(min_value == -1){
+		zabbix_log(LOG_LEVEL_ERR, "select [table:%s] failed due to missing all partitions", table->name);
+		return ret;
+	}
+
+	for (step=0; step < (24*4) && 0 < count; step ++)
+	{
+		if(clock_from <= min_value){
+			clock_from = min_value;
+			if(clock_from >= clock_to){
+				break;
+			}
+		}
+
+		sql_offset = 0;
+		db_partition_produce_name(clock_from, table->name, temp_table_name, 128);
+		zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
+				"select clock,ns,%s"
+				" from %s"
+				" where itemid=" ZBX_FS_UI64
+					" and clock BETWEEN %d AND %d"
+				" order by clock desc",
+				table->fields, temp_table_name, itemid, clock_from, clock_to);
+
+		result = DBselectN(sql, count);
+
+		if (NULL == result)
+			goto cont;
+
+		while (NULL != (row = DBfetch(result)))
+		{
+			zbx_history_record_t	value;
+
+			value.timestamp.sec = atoi(row[0]);
+			value.timestamp.ns = atoi(row[1]);
+			table->rtov(&value.value, row + 2);
+
+			zbx_vector_history_record_append_ptr(values, &value);
+
+			count--;
+		}
+		DBfree_result(result);
+
+cont:
+		clock_to = clock_to - SEC_PER_HOUR;
+		clock_from = clock_from - SEC_PER_HOUR;
+	}
+
+	if (0 < count)
+	{
+		/* no more data in database, return success */
+		ret = SUCCEED;
+		goto out;
+	}
+
+	/* drop data from the last second and read the whole second again  */
+	/* to ensure that data is cached by seconds                        */
+	end_timestamp = values->values[values->values_num - 1].timestamp.sec;
+
+	while (0 < values->values_num && values->values[values->values_num - 1].timestamp.sec == end_timestamp)
+	{
+		values->values_num--;
+		zbx_history_record_clear(&values->values[values->values_num], value_type);
+	}
+
+	ret = db_read_values_by_time(itemid, value_type, values, 1, end_timestamp);
+out:
+	zbx_free(sql);
+
+	return ret;
+}
+
+static int	db_read_values_by_count_partitions(zbx_uint64_t itemid, int value_type, zbx_vector_history_record_t *values,
 		int count, int end_timestamp)
 {
 	char			*sql = NULL;
@@ -480,6 +575,48 @@ out:
 	return ret;
 }
 
+
+
+/************************************************************************************
+ *                                                                                  *
+ * Purpose: reads item history data from database                                   *
+ *                                                                                  *
+ * Parameters:  itemid        - [IN] the itemid                                     *
+ *              value_type    - [IN] the value type (see ITEM_VALUE_TYPE_* defs)    *
+ *              values        - [OUT] the item history data values                  *
+ *              count         - [IN] the number of values to read                   *
+ *              end_timestamp - [IN] the value timestamp to start reading with      *
+ *                                                                                  *
+ * Return value: SUCCEED - the history data were read successfully                  *
+ *               FAIL - otherwise                                                   *
+ *                                                                                  *
+ * Comments: this function reads <count> values before <count_timestamp> (including)*
+ *           plus all values in range:                                              *
+ *             count_timestamp < <value timestamp> <= read_timestamp                *
+ *                                                                                  *
+ *           To speed up the reading time with huge data loads, data is read by     *
+ *           smaller time segments (hours, day, week, month) and the next (larger)  *
+ *           time segment is read only if the requested number of values (<count>)  *
+ *           is not yet retrieved.                                                  *
+ *                                                                                  *
+ ************************************************************************************/
+static int	db_read_values_by_count(zbx_uint64_t itemid, int value_type, zbx_vector_history_record_t *values,
+		int count, int end_timestamp) {
+	const char*	history_tab="history";
+	const char*	history_uint_tab="history_uint";
+	const char*   history_text_tab="history_text";
+	const char*   history_str_tab="history_str";
+	const char*	history_log_tab="history_log";
+
+	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
+
+	if(strcmp(table->name, history_text_tab) == 0 || strcmp(table->name, history_log_tab) == 0) {
+		return db_read_values_by_count_partitions(itemid, value_type, values, count, end_timestamp);
+	} else {
+		return db_read_values_by_count_table(itemid, value_type, values, count, end_timestamp);
+	}
+}
+
 /************************************************************************************
  *                                                                                  *
  * Purpose: reads item history data from database                                   *
@@ -510,7 +647,7 @@ static int	db_read_values_by_time_and_count(zbx_uint64_t itemid, int value_type,
 	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
 
 	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
-			"select clock,ns,%s"
+			"select SQL_BUFFER_RESULT clock,ns,%s"
 			" from %s"
 			" where itemid=" ZBX_FS_UI64,
 			table->fields, table->name, itemid);
