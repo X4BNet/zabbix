@@ -1498,7 +1498,7 @@ int	zbx_db_vexecute(const char *fmt, va_list args)
 		if(attempt == 8)
 		{
 			zbx_db_errlog(errcode, mysql_errno(conn), mysql_error(conn), sql);
-			ret = (SUCCEED == is_recoverable_mysql_error() ? ZBX_DB_DOWN : ZBX_DB_FAIL);
+			ret = (SUCCEED == is_recoverable_mysql_error(err_no) ? ZBX_DB_DOWN : ZBX_DB_FAIL);
 		} else {
 			int	status;
 
