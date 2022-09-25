@@ -353,7 +353,7 @@ static int	db_read_values_by_time(zbx_uint64_t itemid, int value_type, zbx_vecto
 	DB_RESULT		result;
 	DB_ROW			row;
 	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
-	const char table_buffer[64];
+	char table_buffer[64];
 	const char* table_name = table->name;
 
 	if (1 == seconds)
