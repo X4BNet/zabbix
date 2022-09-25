@@ -3077,6 +3077,10 @@ zbx_uint64_t db_partition_range(const char* table) {
 
 	if (NULL != (row = DBfetch(result)))
 	{
+		if (SUCCEED == DBis_null(row[0])) {
+			zabbix_log(LOG_LEVEL_ERR, "getting partitions failed for %s:%s due to zero partitions", db_name, table_esc);
+			goto out;
+		}
 		ZBX_STR2UINT64(ret, row[0]);
 	}
 
