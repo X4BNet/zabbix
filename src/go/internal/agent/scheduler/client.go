@@ -39,6 +39,7 @@ type clientItem struct {
 	itemid uint64
 	delay  string
 	key    string
+	failed bool
 }
 
 // pluginInfo is used to track plugin usage by client

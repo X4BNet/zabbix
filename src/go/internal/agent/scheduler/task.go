@@ -194,10 +194,14 @@ func (t *exporterTask) perform(s Scheduler) {
 		}
 		// set failed state based on last result
 		if result != nil && result.Error != nil {
-			log.Warningf(`check '%s' is not supported: %s`, itemkey, result.Error)
+			if !t.item.failed {
+				log.Warningf(`check '%s' is not supported: %s`, itemkey, result.Error)
+				t.item.failed = true
+			}
 			t.failed = true
 		} else {
 			t.failed = false
+			t.item.failed = false
 		}
 
 		s.FinishTask(t)
