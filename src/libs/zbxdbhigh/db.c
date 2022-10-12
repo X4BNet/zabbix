@@ -3130,7 +3130,7 @@ int	zbx_db_insert_execute(zbx_db_insert_t *self)
 	const char* table_name;
 	uint64_t clock_min = -1, clock_max = 0;
 	char partition_min[128], partition_max[128];
-
+	bool multirow = true;
 	uint64_t min_value;
 
 	if (0 == self->rows.values_num)
@@ -3229,6 +3229,7 @@ int	zbx_db_insert_execute(zbx_db_insert_t *self)
 			db_partition_produce_name(clock_max, table_name, partition_max, sizeof(partition_max));
 			if(strcmp(partition_min, partition_max) == 0) {
 				table_name = partition_min;
+				multirow = false;
 			}
 		}
 	}
@@ -3339,12 +3340,12 @@ retry_oracle:
 	{
 		zbx_db_value_t	*values = (zbx_db_value_t *)self->rows.values[i];
 
-#	ifdef HAVE_MULTIROW_INSERT
+if(multirow) {
 		if (16 > sql_offset)
 			zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, sql_command);
-#	else
+} else {
 		zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, sql_command);
-#	endif
+}
 		for (j = 0; j < self->fields.values_num; j++)
 		{
 			const zbx_db_value_t	*value = &values[j];
@@ -3406,7 +3407,7 @@ retry_oracle:
 
 	if (16 < sql_offset)
 	{
-#	ifdef HAVE_MULTIROW_INSERT
+	if(multirow) {
 		if (',' == sql[sql_offset - 1])
 		{
 			sql_offset--;
@@ -3420,7 +3421,7 @@ retry_oracle:
 			zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, ";\n");
 #		endif
 		}
-#	endif
+	}
 		zabbix_log(LOG_LEVEL_DEBUG, "zbx_db_insert_execute: isHistory=[%d], sql=[%s]", isHistory, sql);
 
 		DBend_multiple_update(sql, sql_alloc, sql_offset);
