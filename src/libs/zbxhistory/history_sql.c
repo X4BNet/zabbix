@@ -585,25 +585,32 @@ static int db_read_values_by_item(zbx_uint64_t itemid, int value_type, zbx_vecto
 
 	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
 			"select lastitemvalue,lastitemclock,previtemvalue,previtemclock"
-			" from items where itemid=" ZBX_FS_UI64 " limit 1",
+			" from items where itemid=" ZBX_FS_UI64,
 			itemid);
 
-	result = DBselectN(sql, count);
+	result = DBselectN(sql, 1);
 	if (NULL != (row = DBfetch(result)))
 	{
 		zbx_history_record_t	value;
 
 		value.timestamp.sec = atoi(row[1]);
-		value.timestamp.ns = 0;
-		table->rtov(&value.value, row);
+		
+		if(0 != value.timestamp.sec) {
+			value.timestamp.ns = 0;
+			table->rtov(&value.value, row);
 
-		zbx_vector_history_record_append_ptr(values, &value);
+			zbx_vector_history_record_append_ptr(values, &value);
 
-		value.timestamp.sec = atoi(row[3]);
-		value.timestamp.ns = 0;
-		table->rtov(&value.value, row+2);
+			if(count >= 2) {
+				value.timestamp.sec = atoi(row[3]);
+				if(0 != value.timestamp.sec) {
+					value.timestamp.ns = 0;
+					table->rtov(&value.value, row+2);
 
-		zbx_vector_history_record_append_ptr(values, &value);
+					zbx_vector_history_record_append_ptr(values, &value);
+				}
+			}
+		}
 	}
 
 	DBfree_result(result);
