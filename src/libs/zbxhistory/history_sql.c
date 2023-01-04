@@ -575,6 +575,43 @@ out:
 	return ret;
 }
 
+static int db_read_values_by_item(zbx_uint64_t itemid, int value_type, zbx_vector_history_record_t* values, int start, int count, int end_timestamp) {
+	char			*sql = NULL;
+	size_t			sql_alloc = 0, sql_offset;
+	
+	DB_RESULT		result;
+	DB_ROW			row;
+	zbx_vc_history_table_t	*table = &vc_history_tables[value_type];
+
+	zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset,
+			"select lastitemvalue,lastitemclock,previtemvalue,previtemclock"
+			" from items where itemid=" ZBX_FS_UI64 " limit 1",
+			itemid);
+
+	result = DBselectN(sql, count);
+	if (NULL != (row = DBfetch(result)))
+	{
+		zbx_history_record_t	value;
+
+		value.timestamp.sec = atoi(row[1]);
+		value.timestamp.ns = 0;
+		table->rtov(&value.value, row);
+
+		zbx_vector_history_record_append_ptr(values, &value);
+
+		value.timestamp.sec = atoi(row[3]);
+		value.timestamp.ns = 0;
+		table->rtov(&value.value, row+2);
+
+		zbx_vector_history_record_append_ptr(values, &value);
+	}
+
+	DBfree_result(result);
+
+	zbx_free(sql);
+
+	return SUCCEED;
+}
 
 
 /************************************************************************************
@@ -748,6 +785,11 @@ static int	sql_get_values(zbx_history_iface_t *hist, zbx_uint64_t itemid, int st
 {
 	if (0 == count)
 		return db_read_values_by_time(itemid, hist->value_type, values, end - start, end);
+
+
+	if(count <= 2 && hist->value_type != ITEM_VALUE_TYPE_LOG && hist->value_type != ITEM_VALUE_TYPE_TEXT) {
+		return db_read_values_by_item(itemid,  hist->value_type, values, start, count, end);
+	}
 
 	if (0 == start)
 		return db_read_values_by_count(itemid, hist->value_type, values, count, end);
