@@ -716,7 +716,7 @@ static int	get_last_n_value(const DC_ITEM *item, const char *parameters, const z
 
 	ts_end.sec -= time_shift;
 
-	if (SUCCEED != zbx_vc_get_values(item->itemid, item->value_type, &values, 0, arg1, &ts_end))
+	if (SUCCEED != zbx_vc_get_values(item->itemid, item->value_type, &values, 60 * 60 * 36, arg1, &ts_end))
 	{
 		*error = zbx_strdup(*error, "cannot get values from value cache");
 		goto out;
