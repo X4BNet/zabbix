@@ -790,13 +790,13 @@ static void	sql_destroy(zbx_history_iface_t *hist)
 static int	sql_get_values(zbx_history_iface_t *hist, zbx_uint64_t itemid, int start, int count, int end,
 		zbx_vector_history_record_t *values)
 {
-	if (0 == count)
-		return db_read_values_by_time(itemid, hist->value_type, values, end - start, end);
-
-
 	if(count <= 2 && hist->value_type != ITEM_VALUE_TYPE_LOG && hist->value_type != ITEM_VALUE_TYPE_TEXT) {
 		return db_read_values_by_item(itemid,  hist->value_type, values, start, count, end);
 	}
+
+	if (0 == count)
+		return db_read_values_by_time(itemid, hist->value_type, values, end - start, end);
+
 
 	if (0 == start)
 		return db_read_values_by_count(itemid, hist->value_type, values, count, end);
